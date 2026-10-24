@@ -72,8 +72,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       # NAS benchmark scratch space — point to any writable share
       - /volume1/docker/homelab-benchmark/scratch:/mnt/nas_bench
-      # Kubeconfig (optional)
-      - ${K8S_KUBECONFIG_DIR:-/dev/null}:/root/.kube:ro
+      # Kubeconfig (optional) — leave K8S_KUBECONFIG_DIR empty to skip
+      - /volume1/docker/homelab-benchmark/kube:/root/.kube:ro
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     networks:
