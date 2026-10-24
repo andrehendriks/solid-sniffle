@@ -1,0 +1,60 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: homelab_benchmark
+      POSTGRES_USER: ${POSTGRES_USER:-homelab}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-homelab_secret}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-homelab}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-homelab}:${POSTGRES_PASSWORD:-homelab_secret}@postgres:5432/homelab_benchmark
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production-please}
+      SMB_HOST: ${SMB_HOST:-}
+      SMB_SHARE: ${SMB_SHARE:-}
+      SMB_USERNAME: ${SMB_USERNAME:-}
+      SMB_PASSWORD: ${SMB_PASSWORD:-}
+      K8S_KUBECONFIG: ${K8S_KUBECONFIG:-}
+      IPERF3_SERVER: ${IPERF3_SERVER:-}
+      NAS_BENCHMARK_PATH: ${NAS_BENCHMARK_PATH:-/benchmark}
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - benchmark_tmp:/benchmark
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  benchmark_tmp:
