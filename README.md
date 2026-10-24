@@ -20,9 +20,61 @@ A self-hosted application for automatically benchmarking and monitoring NAS, SMB
 | Frontend | React, TypeScript, Tailwind CSS, Recharts, React Query |
 | Deploy   | Docker Compose (single `docker compose up`)          |
 
-## Quick Start
+## Synology DSM Deployment (Container Manager)
 
-### 1. Clone and configure
+Deploy via **DSM → Container Manager → Project → Create**.
+
+### Stap 1 — Maak de map aan op je NAS
+
+Open DSM File Station en maak aan:
+```
+/volume1/docker/homelab-benchmark/
+/volume1/docker/homelab-benchmark/postgres/
+/volume1/docker/homelab-benchmark/scratch/
+```
+
+### Stap 2 — Maak een `.env` bestand aan
+
+Maak `/volume1/docker/homelab-benchmark/.env` aan via File Station of SSH:
+```bash
+ssh admin@nas-ip
+cp /dev/stdin /volume1/docker/homelab-benchmark/.env << 'EOF'
+POSTGRES_DB=homelab
+POSTGRES_USER=homelab
+POSTGRES_PASSWORD=JOUW_WACHTWOORD
+SECRET_KEY=JOUW_GEHEIM
+FRONTEND_PORT=3000
+BACKEND_PORT=8000
+SMB_HOST=192.168.1.x          # optioneel
+SMB_SHARE=benchmarks           # optioneel
+IPERF3_SERVER=                 # optioneel
+ALERT_WEBHOOK_URL=             # optioneel
+EOF
+```
+
+### Stap 3 — Project aanmaken in Container Manager
+
+1. Ga naar **Container Manager → Project → Aanmaken**
+2. Geef het project de naam `homelab-benchmark`
+3. Stel het pad in op `/volume1/docker/homelab-benchmark`
+4. Upload of plak de inhoud van **`docker-compose.synology.yml`** als compose bestand
+5. Klik **Volgende** → **Gereed**
+
+Container Manager trekt de images automatisch op van `ghcr.io` en start:
+- `homelab-db` (PostgreSQL)
+- `homelab-backend` (FastAPI op poort 8000)
+- `homelab-frontend` (nginx op poort 3000)
+
+### Stap 4 — Openen
+
+Open in de browser: `http://NAS-IP:3000`  
+API documentatie: `http://NAS-IP:8000/docs`
+
+> **Images worden automatisch bijgewerkt** via GitHub Actions bij elke push naar `main`. Gebruik **Container Manager → Project → Bijwerken** om de nieuwste images te pullen.
+
+---
+
+## Quick Start (lokaal/development)
 
 ```bash
 git clone https://github.com/andrehendriks/solid-sniffle.git

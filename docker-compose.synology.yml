@@ -1,0 +1,96 @@
+# ============================================================
+#  HomeLab Benchmark Center — Synology DSM Container Manager
+# ============================================================
+# Deploy via DSM > Container Manager > Project > Create
+# Paste this file or upload it, then fill in the .env values.
+#
+# Volume paths below use /volume1 — change to your volume
+# (e.g. /volume2) if your Docker share is on a different disk.
+#
+# Images are pulled from GitHub Container Registry (ghcr.io).
+# Make sure the packages are set to "public" in GitHub, or
+# add a GHCR_TOKEN to pull private images.
+# ============================================================
+
+version: "3.9"
+
+services:
+
+  # ── PostgreSQL ─────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: homelab-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-homelab}
+      POSTGRES_USER: ${POSTGRES_USER:-homelab}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - /volume1/docker/homelab-benchmark/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-homelab}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - homelab
+
+  # ── Backend (FastAPI) ──────────────────────────────────────
+  backend:
+    image: ghcr.io/andrehendriks/solid-sniffle/backend:latest
+    container_name: homelab-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-homelab}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-homelab}
+      SECRET_KEY: ${SECRET_KEY:-change-this-secret}
+
+      # NAS benchmark — maps to your NAS storage volume
+      NAS_BENCHMARK_PATH: /mnt/nas_bench
+
+      # SMB (optional) — set your Samba server details
+      SMB_HOST: ${SMB_HOST:-}
+      SMB_SHARE: ${SMB_SHARE:-}
+      SMB_USER: ${SMB_USER:-}
+      SMB_PASSWORD: ${SMB_PASSWORD:-}
+      SMB_DOMAIN: ${SMB_DOMAIN:-WORKGROUP}
+
+      # Network (optional) — iperf3 server for bandwidth tests
+      IPERF3_SERVER: ${IPERF3_SERVER:-}
+      PING_HOST: ${PING_HOST:-8.8.8.8}
+      DNS_HOST: ${DNS_HOST:-8.8.8.8}
+
+      # Kubernetes (optional) — path to kubeconfig inside container
+      K8S_KUBECONFIG: ${K8S_KUBECONFIG:-}
+
+      # Alerts (optional) — webhook URL for alert notifications
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+    volumes:
+      # Docker socket — required for Docker benchmarks
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # NAS benchmark scratch space — point to any writable share
+      - /volume1/docker/homelab-benchmark/scratch:/mnt/nas_bench
+      # Kubeconfig (optional)
+      - ${K8S_KUBECONFIG_DIR:-/dev/null}:/root/.kube:ro
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    networks:
+      - homelab
+
+  # ── Frontend (nginx) ───────────────────────────────────────
+  frontend:
+    image: ghcr.io/andrehendriks/solid-sniffle/frontend:latest
+    container_name: homelab-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    networks:
+      - homelab
+
+networks:
+  homelab:
+    driver: bridge
