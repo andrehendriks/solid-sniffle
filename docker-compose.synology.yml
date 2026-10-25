@@ -4,8 +4,9 @@
 # Deploy via DSM > Container Manager > Project > Create
 # Paste this file or upload it, then fill in the .env values.
 #
-# Volume paths below use /volume1 — change to your volume
-# (e.g. /volume2) if your Docker share is on a different disk.
+# PostgreSQL data is stored in a Docker-managed named volume (postgres_data)
+# to avoid permission issues on Synology. Other bind-mount paths still use
+# /volume1 — change to your volume (e.g. /volume2) if needed.
 #
 # Images are pulled from GitHub Container Registry (ghcr.io).
 # Make sure the packages are set to "public" in GitHub, or
@@ -26,12 +27,13 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-homelab}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
     volumes:
-      - /volume1/docker/homelab-benchmark/postgres:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-homelab}"]
+      test: ["CMD-SHELL", "pg_isready -U homelab -d homelab"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 30s
     networks:
       - homelab
 
@@ -75,7 +77,7 @@ services:
       # Kubeconfig (optional) — leave K8S_KUBECONFIG_DIR empty to skip
       - /volume1/docker/homelab-benchmark/kube:/root/.kube:ro
     ports:
-      - "${BACKEND_PORT:-8000}:8000"
+      - "${BACKEND_PORT:-8100}:8000"
     networks:
       - homelab
 
@@ -87,10 +89,13 @@ services:
     depends_on:
       - backend
     ports:
-      - "${FRONTEND_PORT:-3000}:80"
+      - "${FRONTEND_PORT:-3100}:80"
     networks:
       - homelab
 
 networks:
   homelab:
     driver: bridge
+
+volumes:
+  postgres_data:
