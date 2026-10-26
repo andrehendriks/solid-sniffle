@@ -2,15 +2,19 @@
 #  HomeLab Benchmark Center — Synology DSM Container Manager
 # ============================================================
 # Deploy via DSM > Container Manager > Project > Create
-# Paste this file or upload it, then fill in the .env values.
 #
-# PostgreSQL data is stored in a Docker-managed named volume (postgres_data)
-# to avoid permission issues on Synology. Other bind-mount paths still use
-# /volume1 — change to your volume (e.g. /volume2) if needed.
+# STAP 1: Clone de repo naar de NAS via SSH:
+#   git clone https://github.com/andrehendriks/solid-sniffle.git \
+#             /volume1/docker/solid-sniffle
 #
-# Images are pulled from GitHub Container Registry (ghcr.io).
-# Make sure the packages are set to "public" in GitHub, or
-# add a GHCR_TOKEN to pull private images.
+# STAP 2: Maak een .env aan in die map (zie README).
+#
+# STAP 3: Maak het project aan in Container Manager met
+#   pad = /volume1/docker/solid-sniffle
+#   en gebruik dit bestand als compose bestand.
+#
+# Images worden lokaal gebouwd — geen externe registry nodig.
+# PostgreSQL komt van Docker Hub (klein officieel image).
 # ============================================================
 
 version: "3.9"
@@ -18,10 +22,8 @@ version: "3.9"
 services:
 
   # ── PostgreSQL ─────────────────────────────────────────────
-  # Image mirrored to GHCR to avoid Docker Hub rate limits on Synology NAS.
-  # Run the "Build & Push Docker Images" workflow once to populate the mirror.
   postgres:
-    image: ghcr.io/andrehendriks/solid-sniffle/postgres:15-alpine
+    image: postgres:15-alpine
     container_name: homelab-db
     restart: unless-stopped
     environment:
@@ -31,7 +33,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U homelab -d homelab"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-homelab} -d ${POSTGRES_DB:-homelab}"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -39,9 +41,11 @@ services:
     networks:
       - homelab
 
-  # ── Backend (FastAPI) ──────────────────────────────────────
+  # ── Backend (FastAPI) — lokaal gebouwd ────────────────────
   backend:
-    image: ghcr.io/andrehendriks/solid-sniffle/backend:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: homelab-backend
     restart: unless-stopped
     depends_on:
@@ -50,42 +54,33 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-homelab}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-homelab}
       SECRET_KEY: ${SECRET_KEY:-change-this-secret}
-
-      # NAS benchmark — maps to your NAS storage volume
       NAS_BENCHMARK_PATH: /mnt/nas_bench
-
-      # SMB (optional) — set your Samba server details
       SMB_HOST: ${SMB_HOST:-}
       SMB_SHARE: ${SMB_SHARE:-}
       SMB_USER: ${SMB_USER:-}
       SMB_PASSWORD: ${SMB_PASSWORD:-}
       SMB_DOMAIN: ${SMB_DOMAIN:-WORKGROUP}
-
-      # Network (optional) — iperf3 server for bandwidth tests
       IPERF3_SERVER: ${IPERF3_SERVER:-}
       PING_HOST: ${PING_HOST:-8.8.8.8}
       DNS_HOST: ${DNS_HOST:-8.8.8.8}
-
-      # Kubernetes (optional) — path to kubeconfig inside container
       K8S_KUBECONFIG: ${K8S_KUBECONFIG:-}
-
-      # Alerts (optional) — webhook URL for alert notifications
       ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
     volumes:
-      # Docker socket — required for Docker benchmarks
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      # NAS benchmark scratch space — point to any writable share
-      - /volume1/docker/homelab-benchmark/scratch:/mnt/nas_bench
-      # Kubeconfig (optional) — leave K8S_KUBECONFIG_DIR empty to skip
-      - /volume1/docker/homelab-benchmark/kube:/root/.kube:ro
+      - /volume1/docker/solid-sniffle/scratch:/mnt/nas_bench
+      - /volume1/docker/solid-sniffle/kube:/root/.kube:ro
     ports:
       - "${BACKEND_PORT:-8100}:8000"
     networks:
       - homelab
 
-  # ── Frontend (nginx) ───────────────────────────────────────
+  # ── Frontend (nginx) — lokaal gebouwd ─────────────────────
   frontend:
-    image: ghcr.io/andrehendriks/solid-sniffle/frontend:latest
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://${NAS_IP:-localhost}:${BACKEND_PORT:-8100}
     container_name: homelab-frontend
     restart: unless-stopped
     depends_on:

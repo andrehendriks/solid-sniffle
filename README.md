@@ -52,25 +52,26 @@ ALERT_WEBHOOK_URL=             # optioneel
 EOF
 ```
 
-### Stap 3 — Zet GHCR packages op Openbaar
+### Stap 3 — Clone de repo naar de NAS via SSH
 
-Alle images (inclusief de PostgreSQL mirror) worden gepubliceerd naar GitHub Container Registry. Ze moeten **openbaar** zijn zodat Synology ze zonder login kan pullen.
+```bash
+ssh admin@NAS-IP
+git clone https://github.com/andrehendriks/solid-sniffle.git /volume1/docker/solid-sniffle
+mkdir -p /volume1/docker/solid-sniffle/scratch
+mkdir -p /volume1/docker/solid-sniffle/kube
+```
 
-1. Ga naar **github.com → jouw profiel → Packages**
-2. Open elk package (`backend`, `frontend`, `postgres`)
-3. Kies **Package settings → Change visibility → Public**
-
-> Als de packages nog niet bestaan, push eerst naar `main` of activeer de workflow handmatig via **GitHub → Actions → Build & Push Docker Images → Run workflow**.
+> De images worden **lokaal gebouwd** op de NAS — geen externe registry (ghcr.io / Docker Hub) nodig voor backend en frontend. Alleen `postgres:15-alpine` wordt van Docker Hub gepulled.
 
 ### Stap 4 — Project aanmaken in Container Manager
 
 1. Ga naar **Container Manager → Project → Aanmaken**
 2. Geef het project de naam `solid-sniffle`
-3. Stel het pad in op `/volume1/docker/solid-sniffle`
-4. Upload of plak de inhoud van **`docker-compose.synology.yml`** als compose bestand
+3. Stel het **pad** in op `/volume1/docker/solid-sniffle`
+4. Kies **Bestaand docker-compose.yml gebruiken** → selecteer `docker-compose.synology.yml`
 5. Klik **Volgende** → **Gereed**
 
-Container Manager trekt alle images op van `ghcr.io` (geen Docker Hub, geen rate limits) en start:
+Container Manager bouwt de backend en frontend lokaal en start:
 - `homelab-db` (PostgreSQL)
 - `homelab-backend` (FastAPI op poort 8000)
 - `homelab-frontend` (nginx op poort 3000)
