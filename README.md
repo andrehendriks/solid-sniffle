@@ -52,15 +52,25 @@ ALERT_WEBHOOK_URL=             # optioneel
 EOF
 ```
 
-### Stap 3 — Project aanmaken in Container Manager
+### Stap 3 — Zet GHCR packages op Openbaar
+
+Alle images (inclusief de PostgreSQL mirror) worden gepubliceerd naar GitHub Container Registry. Ze moeten **openbaar** zijn zodat Synology ze zonder login kan pullen.
+
+1. Ga naar **github.com → jouw profiel → Packages**
+2. Open elk package (`backend`, `frontend`, `postgres`)
+3. Kies **Package settings → Change visibility → Public**
+
+> Als de packages nog niet bestaan, push eerst naar `main` of activeer de workflow handmatig via **GitHub → Actions → Build & Push Docker Images → Run workflow**.
+
+### Stap 4 — Project aanmaken in Container Manager
 
 1. Ga naar **Container Manager → Project → Aanmaken**
-2. Geef het project de naam `homelab-benchmark`
-3. Stel het pad in op `/volume1/docker/homelab-benchmark`
+2. Geef het project de naam `solid-sniffle`
+3. Stel het pad in op `/volume1/docker/solid-sniffle`
 4. Upload of plak de inhoud van **`docker-compose.synology.yml`** als compose bestand
 5. Klik **Volgende** → **Gereed**
 
-Container Manager trekt de images automatisch op van `ghcr.io` en start:
+Container Manager trekt alle images op van `ghcr.io` (geen Docker Hub, geen rate limits) en start:
 - `homelab-db` (PostgreSQL)
 - `homelab-backend` (FastAPI op poort 8000)
 - `homelab-frontend` (nginx op poort 3000)

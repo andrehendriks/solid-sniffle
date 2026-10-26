@@ -18,8 +18,10 @@ version: "3.9"
 services:
 
   # ── PostgreSQL ─────────────────────────────────────────────
+  # Image mirrored to GHCR to avoid Docker Hub rate limits on Synology NAS.
+  # Run the "Build & Push Docker Images" workflow once to populate the mirror.
   postgres:
-    image: postgres:15-alpine
+    image: ghcr.io/andrehendriks/solid-sniffle/postgres:15-alpine
     container_name: homelab-db
     restart: unless-stopped
     environment:
